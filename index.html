@@ -96,6 +96,25 @@
   .shot .meta b { color: var(--accent-soft); }
   .shot.empty { display: flex; align-items: center; justify-content: center;
     color: #3b4956; font-size: 11px; letter-spacing: 0.12em; }
+  .shot .grade {
+    position: absolute; right: 6px; top: 6px;
+    width: 22px; height: 22px; line-height: 22px; text-align: center;
+    border-radius: 50%; font-weight: 800; font-size: 13px;
+    background: rgba(10,15,22,0.75); color: #fff;
+    border: 1.5px solid rgba(255,255,255,0.4);
+  }
+  .shot .grade-s { color: #ffd06a; border-color: #ffd06a; box-shadow: 0 0 8px rgba(255,208,106,0.6); }
+  .shot .grade-a { color: #9be58a; border-color: #9be58a; }
+  .shot .grade-b { color: #cfe6ff; border-color: #cfe6ff; }
+  .shot .grade-c { color: #9fb1bf; border-color: #9fb1bf; }
+  .shot .new-tag {
+    position: absolute; left: 6px; top: 6px;
+    background: var(--accent); color: #06222f;
+    font-size: 9px; font-weight: 800; letter-spacing: 0.14em;
+    padding: 2px 5px; border-radius: 4px;
+  }
+  .best-line { color: var(--ink-dim); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; margin-top: 8px; }
+  .best-line b { color: var(--accent-soft); font-weight: 700; }
   .final-score {
     font-size: 44px; font-weight: 700; color: var(--accent-soft);
     letter-spacing: 0.04em; line-height: 1; margin: 8px 0 4px;
@@ -134,6 +153,7 @@
         <button id="startBtn" class="btn">START RUN</button>
         <span style="color:var(--ink-dim);font-size:13px">60-second session</span>
       </div>
+      <div id="startBest" class="best-line hidden">Best: <b>0</b></div>
     </div>
   </div>
 
@@ -1215,7 +1235,57 @@
       return muted;
     }
     function isMuted() { return muted; }
-    return { ensure, setSpeedFactor, shutter, toggleMute, isMuted };
+    // Distant wildlife call. kind ∈ { 'howl', 'chirp' }. pan in [-1, 1].
+    function cue(kind, pan) {
+      if (!ctx) return;
+      const t0 = ctx.currentTime;
+      const panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+      if (panner) panner.pan.value = clamp(pan || 0, -1, 1);
+      const out = panner || master;
+      if (panner) panner.connect(master);
+      if (kind === 'howl') {
+        // low filtered noise burst — wolf / bear suggestion
+        const dur = 0.55;
+        const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
+        const ch = buf.getChannelData(0);
+        for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * 0.4;
+        const src = ctx.createBufferSource(); src.buffer = buf;
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+        lp.frequency.setValueAtTime(420, t0);
+        lp.frequency.exponentialRampToValueAtTime(220, t0 + dur);
+        const g  = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.30, t0 + 0.08);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        src.connect(lp); lp.connect(g); g.connect(out);
+        src.start(t0); src.stop(t0 + dur + 0.05);
+        // overlay a slow sine for the "howl" pitch contour
+        const o = ctx.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(180, t0);
+        o.frequency.exponentialRampToValueAtTime(300, t0 + 0.2);
+        o.frequency.exponentialRampToValueAtTime(160, t0 + dur);
+        const og = ctx.createGain();
+        og.gain.setValueAtTime(0.0001, t0);
+        og.gain.exponentialRampToValueAtTime(0.10, t0 + 0.15);
+        og.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        o.connect(og); og.connect(out);
+        o.start(t0); o.stop(t0 + dur + 0.05);
+      } else if (kind === 'chirp') {
+        // bright chirp — fox / eagle
+        const dur = 0.18;
+        const o = ctx.createOscillator(); o.type = 'triangle';
+        o.frequency.setValueAtTime(1400, t0);
+        o.frequency.exponentialRampToValueAtTime(2400, t0 + 0.06);
+        o.frequency.exponentialRampToValueAtTime(1100, t0 + dur);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.22, t0 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        o.connect(g); g.connect(out);
+        o.start(t0); o.stop(t0 + dur + 0.02);
+      }
+    }
+    return { ensure, setSpeedFactor, shutter, toggleMute, isMuted, cue };
   })();
 
   // ============================================================
@@ -1252,11 +1322,17 @@
     worldX: 0,                      // jeep's world position
     animals: [],
     spawnTimer: 0,
+    props: [],                      // foreground scenery (trees/bushes/rocks/logs)
+    propSpawnTimer: 0,
+    seenSpecies: new Set(),         // tracks first-encounter for the run bonus
     popups: [],                     // floating score breakdowns
-    photos: [],                     // captured: {dataUrl, score, label, t}
+    photos: [],                     // captured: {dataUrl, score, label, t, grade, ...}
     jeepBob: 0,
     wheelPhase: 0,
+    hiScore: 0,                     // persisted in localStorage
+    isNewBest: false,
   };
+  try { game.hiScore = parseInt(localStorage.getItem('shutter-drive:hi') || '0', 10) || 0; } catch (_) {}
 
   game.ctx = game.canvas.getContext('2d');
 
@@ -1401,9 +1477,19 @@
     game.speed    = SPEED.COAST;
     game.worldX   = 0;
     game.animals.length = 0;
+    game.props.length   = 0;
     game.popups.length  = 0;
     game.photos.length  = 0;
+    game.seenSpecies.clear();
     game.spawnTimer = 0.4;
+    game.propSpawnTimer = 0.05;
+    game.isNewBest = false;
+    // pre-seed a few props so the foreground isn't empty for the first few seconds
+    for (let i = 0; i < 5; i++) {
+      spawnProp();
+      const p = game.props[game.props.length - 1];
+      p.worldX -= rand(60, game.w * 0.9);
+    }
     document.getElementById('startOverlay').classList.add('hidden');
     document.getElementById('endOverlay').classList.add('hidden');
     document.body.style.cursor = 'none';
@@ -1411,10 +1497,19 @@
 
   function endRun() {
     game.state = State.END;
+    // persist new high score
+    game.isNewBest = game.score > game.hiScore;
+    if (game.isNewBest) {
+      game.hiScore = game.score;
+      try { localStorage.setItem('shutter-drive:hi', String(game.hiScore)); } catch (_) {}
+    }
     document.getElementById('finalScore').textContent = game.score.toLocaleString();
+    const bestText = game.isNewBest
+      ? `New best! Previous best: ${(game.hiScore === game.score ? 0 : game.hiScore).toLocaleString()}`
+      : `Best: ${game.hiScore.toLocaleString()}`;
     document.getElementById('endSummary').textContent =
       `${game.shotsTaken} shot${game.shotsTaken === 1 ? '' : 's'} · ` +
-      `${game.shotsMissed} missed · ${game.photos.length} kept`;
+      `${game.shotsMissed} missed · ${game.photos.length} kept · ${bestText}`;
 
     // gallery: top 6 photos by score
     const top = [...game.photos].sort((a, b) => b.score - a.score).slice(0, 6);
@@ -1424,9 +1519,14 @@
       const cell = document.createElement('div');
       cell.className = 'shot';
       if (top[i]) {
+        const p = top[i];
+        const gradeClass = p.grade ? ` grade-${p.grade.toLowerCase()}` : '';
+        const newTag = p.firstEncounter ? '<span class="new-tag">NEW</span>' : '';
+        const gradeBadge = p.grade ? `<span class="grade${gradeClass}">${p.grade}</span>` : '';
         cell.innerHTML =
-          `<img src="${top[i].dataUrl}" alt="${top[i].label}"/>` +
-          `<div class="meta"><span>${top[i].label}</span><b>+${top[i].score}</b></div>`;
+          `<img src="${p.dataUrl}" alt="${p.label}"/>` +
+          newTag + gradeBadge +
+          `<div class="meta"><span>${p.label}</span><b>+${p.score}</b></div>`;
       } else {
         cell.classList.add('empty');
         cell.textContent = 'NO PHOTO';
@@ -1461,8 +1561,27 @@
     return 0.85;
   }
 
+  // Per-tier weight multiplier based on elapsed time in the run.
+  // Warmup (first 12s): no rares, more commons.
+  // Steady (mid 36s): spec weights as authored.
+  // Finale (last 12s): rare spike, commons thin.
+  function tierWeightFactor(tier, runT) {
+    if (runT < 12) {
+      if (tier === 'rare')     return 0.0;
+      if (tier === 'uncommon') return 0.5;
+      return 1.7;   // common
+    }
+    if (runT >= 48) {
+      if (tier === 'rare')     return 3.0;
+      if (tier === 'uncommon') return 1.3;
+      return 0.55;
+    }
+    return 1.0;
+  }
+
   function spawnAnimal() {
-    const species = weightedChoice(SPECIES, s => s.spawnWeight);
+    const runT = game.t;
+    const species = weightedChoice(SPECIES, s => s.spawnWeight * tierWeightFactor(s.tier, runT));
     const y = bandY(species.band);
     const depth = depthForBand(species.band, y);
     const dir = (species.behavior === 'fly-across' || species.behavior === 'walk-across')
@@ -1493,6 +1612,15 @@
       a.vx = (Math.random() < 0.5 ? -1 : 1) * (species.crossSpeed || 12);
     }
     game.animals.push(a);
+
+    // rare-spawn audio cue, panned by which side of the screen the animal is on
+    if (species.tier === 'rare' && game.state === State.PLAYING) {
+      const screenX = (a.worldX - game.worldX) * a.depth + game.w * 0.5;
+      const pan = clamp((screenX / game.w - 0.5) * 2, -1, 1);
+      const name = species.name.toLowerCase();
+      const kind = (name.includes('wolf') || name.includes('bear')) ? 'howl' : 'chirp';
+      Audio.cue(kind, pan);
+    }
   }
 
   function updateAnimals(dt, t) {
@@ -1530,6 +1658,210 @@
       const screenX = (a.worldX + a.crossOffset - camX) * a.depth + game.w * 0.5;
       return screenX > -260 && screenX < game.w + 800 && a.y > -60 && a.y < game.h + 60;
     });
+  }
+
+  // ============================================================
+  // FOREGROUND PROPS  (occlusion layer)
+  // ============================================================
+  const PROP_TYPES = [
+    { kind: 'pine',  w: 38, h: 60, weight: 2.5 },
+    { kind: 'bush',  w: 46, h: 26, weight: 3.5 },
+    { kind: 'rock',  w: 32, h: 18, weight: 1.4 },
+    { kind: 'log',   w: 60, h: 14, weight: 1.0 },
+    { kind: 'tuft',  w: 18, h: 18, weight: 2.5 },
+  ];
+
+  function spawnProp() {
+    const t = weightedChoice(PROP_TYPES, p => p.weight);
+    const groundY = lerp(game.h * 0.66, game.h * 0.695, Math.random());
+    const offScreen = game.w * 0.5 + rand(60, 480);
+    const scale = rand(0.85, 1.20);
+    game.props.push({
+      kind: t.kind,
+      worldX: game.worldX + offScreen,
+      groundY,
+      w: t.w * scale,
+      h: t.h * scale,
+      seed: Math.random() * 1000,
+    });
+  }
+
+  function propScreenBox(p) {
+    const sx = (p.worldX - game.worldX) + game.w * 0.5;       // depth 1.0
+    const top = p.groundY - p.h;
+    return { x: sx - p.w / 2, y: top, w: p.w, h: p.h, cx: sx, cy: p.groundY - p.h / 2 };
+  }
+
+  function updateProps() {
+    // despawn props that scrolled off-screen-left
+    const camX = game.worldX;
+    game.props = game.props.filter(p => {
+      const sx = p.worldX - camX + game.w * 0.5;
+      return sx + p.w / 2 > -40;
+    });
+  }
+
+  const propPainters = {
+    pine(ctx, p) {
+      const w = p.w, h = p.h;
+      // trunk
+      ctx.fillStyle = '#2c1c10';
+      ctx.fillRect(-3, -h * 0.18, 6, h * 0.18);
+      ctx.fillStyle = '#1c1208';
+      ctx.fillRect(2, -h * 0.18, 1, h * 0.18);
+      // foliage: three stacked triangles, dark base + highlight top
+      const layers = 3;
+      for (let i = 0; i < layers; i++) {
+        const f = i / (layers - 1);
+        const ty = -h + (h * 0.65) * f;
+        const tw = w * (1 - f * 0.35);
+        const th = h * 0.42;
+        ctx.fillStyle = '#0e2014';
+        ctx.beginPath();
+        ctx.moveTo(0, ty);
+        ctx.lineTo(tw / 2, ty + th);
+        ctx.lineTo(-tw / 2, ty + th);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#1e3a24';
+        ctx.beginPath();
+        ctx.moveTo(0, ty + 2);
+        ctx.lineTo(tw / 2 - 2, ty + th - 1);
+        ctx.lineTo(-2, ty + th - 1);
+        ctx.closePath(); ctx.fill();
+      }
+      // shadow blob
+      ctx.fillStyle = 'rgba(0,0,0,0.32)';
+      fillEllipse(ctx, 0, 0, w * 0.45, 3);
+    },
+    bush(ctx, p) {
+      const w = p.w, h = p.h;
+      // multiple overlapping ellipses for shaggy silhouette
+      ctx.fillStyle = '#1a3220';
+      fillEllipse(ctx, -w * 0.25, -h * 0.4, w * 0.32, h * 0.55);
+      fillEllipse(ctx,  w * 0.20, -h * 0.5, w * 0.30, h * 0.55);
+      fillEllipse(ctx,  0,        -h * 0.6, w * 0.35, h * 0.60);
+      fillEllipse(ctx, -w * 0.15, -h * 0.3, w * 0.30, h * 0.45);
+      fillEllipse(ctx,  w * 0.30, -h * 0.25, w * 0.28, h * 0.40);
+      // highlights
+      ctx.fillStyle = '#3a5d3a';
+      fillEllipse(ctx, -w * 0.10, -h * 0.7, w * 0.20, h * 0.30);
+      fillEllipse(ctx,  w * 0.15, -h * 0.6, w * 0.16, h * 0.22);
+      // dark base
+      ctx.fillStyle = '#0e2014';
+      fillEllipse(ctx, 0, -h * 0.1, w * 0.45, h * 0.18);
+      // small berry/leaf accents (deterministic)
+      const s = (p.seed | 0) % 4;
+      if (s === 0) {
+        ctx.fillStyle = '#c83e3e';
+        ctx.fillRect(-w * 0.05, -h * 0.55, 1.5, 1.5);
+        ctx.fillRect( w * 0.10, -h * 0.45, 1.5, 1.5);
+      }
+    },
+    rock(ctx, p) {
+      const w = p.w, h = p.h;
+      // base rounded
+      ctx.fillStyle = '#4a5260';
+      fillEllipse(ctx, 0, -h * 0.45, w * 0.5, h * 0.55);
+      // upper highlight
+      ctx.fillStyle = '#6e7a8a';
+      ctx.beginPath();
+      ctx.ellipse(-w * 0.1, -h * 0.6, w * 0.32, h * 0.32, 0, Math.PI, Math.PI * 2);
+      ctx.fill();
+      // crack
+      ctx.strokeStyle = '#2a3240';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-w * 0.15, -h * 0.5);
+      ctx.lineTo(w * 0.05, -h * 0.30);
+      ctx.lineTo(w * 0.20, -h * 0.20);
+      ctx.stroke();
+      // shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.32)';
+      fillEllipse(ctx, 0, -1, w * 0.5, 2.5);
+    },
+    log(ctx, p) {
+      const w = p.w, h = p.h;
+      // body cylinder
+      ctx.fillStyle = '#4a3018';
+      roundRect(ctx, -w / 2, -h, w, h * 0.85, h * 0.4, true);
+      // rings on right end (looking at end of log)
+      ctx.fillStyle = '#3a2410';
+      fillEllipse(ctx, w * 0.45, -h * 0.42, h * 0.45, h * 0.45);
+      ctx.fillStyle = '#6a4824';
+      fillEllipse(ctx, w * 0.45, -h * 0.42, h * 0.30, h * 0.30);
+      ctx.strokeStyle = '#3a2410';
+      ctx.lineWidth = 0.8;
+      for (let r = h * 0.10; r < h * 0.32; r += 4) {
+        ctx.beginPath(); ctx.arc(w * 0.45, -h * 0.42, r, 0, Math.PI * 2); ctx.stroke();
+      }
+      // bark texture on top
+      ctx.fillStyle = '#3a2410';
+      for (let x = -w / 2 + 4; x < w * 0.35; x += 7) {
+        ctx.fillRect(x, -h * 0.7, 4, 1);
+      }
+      // moss patch
+      ctx.fillStyle = '#3a5d2a';
+      ctx.fillRect(-w * 0.25, -h * 0.85, 8, 2);
+      ctx.fillRect(-w * 0.10, -h * 0.78, 5, 2);
+      // shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      fillEllipse(ctx, 0, 0, w * 0.55, 2.5);
+    },
+    tuft(ctx, p) {
+      const w = p.w, h = p.h;
+      ctx.fillStyle = '#2c4a26';
+      // blades
+      for (let i = -3; i <= 3; i++) {
+        const bx = (i / 3) * w * 0.45;
+        const bh = h * (0.65 + ((i + p.seed) % 3) * 0.12);
+        ctx.beginPath();
+        ctx.moveTo(bx - 1, 0);
+        ctx.lineTo(bx, -bh);
+        ctx.lineTo(bx + 1, 0);
+        ctx.closePath(); ctx.fill();
+      }
+      // lighter blades
+      ctx.fillStyle = '#5a8e3a';
+      for (let i = -2; i <= 2; i += 2) {
+        const bx = (i / 3) * w * 0.45 + 1;
+        const bh = h * 0.55;
+        ctx.beginPath();
+        ctx.moveTo(bx - 0.5, 0);
+        ctx.lineTo(bx, -bh);
+        ctx.lineTo(bx + 0.5, 0);
+        ctx.closePath(); ctx.fill();
+      }
+    },
+  };
+
+  function drawProps() {
+    const ctx = game.ctx;
+    // sort back-to-front by groundY so taller props (further from road) draw behind
+    const list = [...game.props].sort((a, b) => a.groundY - b.groundY);
+    for (const p of list) {
+      const sx = (p.worldX - game.worldX) + game.w * 0.5;
+      if (sx + p.w / 2 < -10 || sx - p.w / 2 > game.w + 10) continue;
+      ctx.save();
+      ctx.translate(sx, p.groundY);
+      propPainters[p.kind](ctx, p);
+      ctx.restore();
+    }
+  }
+
+  // Fraction of (animalBox ∩ viewfinder) that's covered by any prop.
+  // Coarse: assumes prop rectangles, which slightly over-counts on round bushes
+  // but is fine as a scoring signal.
+  function computeOcclusion(animalBox, vf) {
+    const visible = rectIntersect(animalBox, vf);
+    if (!visible) return 0;
+    const visArea = visible.w * visible.h;
+    let covered = 0;
+    for (const p of game.props) {
+      const pb = propScreenBox(p);
+      const ov = rectIntersect(visible, pb);
+      if (ov) covered += ov.w * ov.h;
+    }
+    return clamp(covered / visArea, 0, 1);
   }
 
   // ============================================================
@@ -1576,14 +1908,39 @@
       const sNorm = clamp(game.speed / SPEED.MAX, 0, 1);
       const clarity = 1.0 - 0.75 * sNorm;
 
+      // foreground occlusion — fraction of visible area covered by props
+      const occluded = computeOcclusion(box, vf);
+      const visibility = 1 - occluded * 0.85;
+
       const rarityMult = TIER[a.species.tier].mult;
-      const score = Math.round(a.species.basePoints * fill * centering * completeness * clarity * rarityMult);
+      const baseScore = a.species.basePoints * fill * centering * completeness * clarity * rarityMult * visibility;
+
+      // first-encounter bonus (×1.5) for the first photo of each species in a run
+      const firstEncounter = !game.seenSpecies.has(a.species.name);
+      const score = Math.round(baseScore * (firstEncounter ? 1.5 : 1));
 
       if (!best || score > best.score) {
-        best = { score, animal: a, box, fill, centering, completeness, clarity, rarityMult };
+        best = {
+          score, animal: a, box,
+          fill, centering, completeness, clarity, rarityMult,
+          occluded, visibility, firstEncounter,
+        };
       }
     }
     return { vf, best };
+  }
+
+  // Letter grade from score-to-ideal ratio (no-penalty baseline).
+  // Tuned so a careful framed shot at moderate speed reliably lands B+;
+  // S requires near-perfect framing AND low speed AND no occlusion.
+  function gradeForBest(best) {
+    if (!best || best.score <= 0) return null;
+    const ideal = best.animal.species.basePoints * best.rarityMult;
+    const ratio = best.score / ideal;
+    if (ratio >= 0.55) return 'S';
+    if (ratio >= 0.30) return 'A';
+    if (ratio >= 0.13) return 'B';
+    return 'C';
   }
 
   function trySnap() {
@@ -1600,13 +1957,19 @@
       game.shotsTaken++;
       game.score += best.score;
 
+      // mark this species as seen (after scoring so the first-encounter check fires)
+      game.seenSpecies.add(best.animal.species.name);
+
       // breakdown popup
       const labels = [];
+      if (best.firstEncounter) labels.push('NEW!');
       if (best.centering   > 0.85) labels.push('centered');
       else if (best.centering > 0.65) labels.push('on frame');
       if (best.fill        > 0.7)  labels.push('full frame');
       else if (best.fill   > 0.35) labels.push('framed');
       if (best.completeness === 1.0) labels.push('clean');
+      if (best.occluded    > 0.4)  labels.push('partial');
+      else if (best.occluded < 0.05) labels.push('clear');
       if (best.clarity     > 0.85) labels.push('sharp');
       else if (best.clarity < 0.45) labels.push('blurry');
       const sub = labels.length ? labels.join(' · ') : best.animal.species.tier;
@@ -1614,7 +1977,8 @@
         text: `${best.animal.species.name} · ${sub}`,
         score: best.score,
         x: vf.cx, y: vf.y - 14, life: 1.6, max: 1.6,
-        color: best.animal.species.tier === 'rare' ? '#ffd06a'
+        color: best.firstEncounter ? '#ffd06a'
+              : best.animal.species.tier === 'rare' ? '#ffd06a'
               : best.animal.species.tier === 'uncommon' ? '#9be58a' : '#cfe6ff',
       });
 
@@ -1632,6 +1996,8 @@
         dataUrl,
         score: best.score,
         label: best.animal.species.name,
+        grade: gradeForBest(best),
+        firstEncounter: best.firstEncounter,
         t: game.t,
       });
     } else {
@@ -1690,10 +2056,22 @@
       spawnAnimal();
       const baseInterval = 0.85;
       const speedFactor  = lerp(1.3, 0.55, game.speed / SPEED.MAX);
-      game.spawnTimer = baseInterval * speedFactor * rand(0.7, 1.3);
+      // finale (last 12s) tightens the spawn rate further
+      const finaleFactor = game.timeLeft < 12 ? 0.75 : 1.0;
+      game.spawnTimer = baseInterval * speedFactor * finaleFactor * rand(0.7, 1.3);
+    }
+
+    // foreground props — spawn rate scales with speed (props scroll past at full parallax)
+    game.propSpawnTimer -= dt;
+    if (game.propSpawnTimer <= 0) {
+      spawnProp();
+      const baseInterval = 0.45;
+      const speedFactor  = lerp(1.3, 0.45, game.speed / SPEED.MAX);
+      game.propSpawnTimer = baseInterval * speedFactor * rand(0.6, 1.4);
     }
 
     updateAnimals(dt, game.t);
+    updateProps();
 
     // popups
     for (const p of game.popups) { p.life -= dt; p.y -= 22 * dt; }
@@ -2110,6 +2488,10 @@
     // animals behind the road foreground
     for (const a of game.animals) drawAnimal(a, game.t);
 
+    // foreground props (trees / bushes / rocks / logs / grass tufts) —
+    // drawn AFTER animals so they occlude, but BEFORE road/jeep
+    drawProps();
+
     drawRoad(game.worldX);
     drawJeep();
 
@@ -2151,9 +2533,19 @@
   // pre-spawn a few props so the start screen looks alive
   for (let i = 0; i < 5; i++) {
     spawnAnimal();
-    // advance them across the screen so they aren't all stacked just off the right edge
     const a = game.animals[game.animals.length - 1];
     a.worldX -= rand(100, game.w * 0.9) / a.depth;
+  }
+  for (let i = 0; i < 6; i++) {
+    spawnProp();
+    const p = game.props[game.props.length - 1];
+    p.worldX -= rand(60, game.w * 0.9);
+  }
+  // show high-score chip on start overlay if one is stored
+  if (game.hiScore > 0) {
+    const el = document.getElementById('startBest');
+    el.classList.remove('hidden');
+    el.querySelector('b').textContent = game.hiScore.toLocaleString();
   }
   requestAnimationFrame(loop);
 })();
