@@ -26,8 +26,12 @@
     position: fixed; inset: 0;
     width: 100%; height: 100%;
     display: block;
-    cursor: none;
+    touch-action: none;
   }
+  @media (hover: hover) and (pointer: fine) {
+    #game { cursor: none; }
+  }
+  html, body { touch-action: none; overscroll-behavior: none; }
   .overlay {
     position: fixed; inset: 0;
     display: flex; align-items: center; justify-content: center;
@@ -123,7 +127,8 @@
         <span class="keys">Mouse</span> aim viewfinder
         (<span class="keys">IJKL</span> keyboard fallback) &nbsp;·&nbsp;
         <span class="keys">Click / Space</span> snap photo &nbsp;·&nbsp;
-        <span class="keys">M</span> mute
+        <span class="keys">M</span> mute<br/>
+        <span class="keys">Touch</span> drag to aim · tap to snap · on-screen <span class="keys">GAS</span> / <span class="keys">BRAKE</span> pedals
       </p>
       <div class="row">
         <button id="startBtn" class="btn">START RUN</button>
@@ -520,6 +525,8 @@
     flash: 0,
     keys: {},
     mouse: { x: 0, y: 0, used: false, down: false },
+    touches: new Map(),                // active touches: id → { role, startX/Y, lastX/Y, startT, moved }
+    pedals: { gasDown: false, brakeDown: false },
     aim: { x: 0, y: 0 },           // viewfinder CENTER (CSS px)
     vfSize: { w: 220, h: 170 },    // recomputed on resize
     speed: 0,                       // current jeep speed
@@ -585,6 +592,75 @@
   game.canvas.addEventListener('mousedown', (e) => {
     if (game.state === State.PLAYING && e.button === 0) trySnap();
   });
+
+  // --- touch input ---------------------------------------------------------
+  function pedalGeometry() {
+    const r = clamp(Math.min(game.w, game.h) * 0.075, 44, 76);
+    const m = r + 18;                              // margin from edge
+    return {
+      r,
+      gas:   { cx: game.w - m, cy: game.h - m, label: 'GAS' },
+      brake: { cx: m,          cy: game.h - m, label: 'BRAKE' },
+    };
+  }
+  function touchToCanvas(t) {
+    const rect = game.canvas.getBoundingClientRect();
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  }
+  function pedalAt(x, y) {
+    const g = pedalGeometry();
+    if (Math.hypot(x - g.gas.cx,   y - g.gas.cy)   < g.r) return 'gas';
+    if (Math.hypot(x - g.brake.cx, y - g.brake.cy) < g.r) return 'brake';
+    return null;
+  }
+  function setAimFromTouch(p) {
+    if (game.state !== State.PLAYING) return;
+    game.aim.x = clamp(p.x, game.vfSize.w / 2, game.w - game.vfSize.w / 2);
+    game.aim.y = clamp(p.y, game.vfSize.h / 2, game.h - game.vfSize.h / 2);
+  }
+  game.canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    Audio.ensure();
+    for (const t of e.changedTouches) {
+      const pos = touchToCanvas(t);
+      const pedal = pedalAt(pos.x, pos.y);
+      if (pedal === 'gas')   game.pedals.gasDown   = true;
+      if (pedal === 'brake') game.pedals.brakeDown = true;
+      game.touches.set(t.identifier, {
+        role: pedal || 'aim',
+        startX: pos.x, startY: pos.y,
+        lastX:  pos.x, lastY:  pos.y,
+        startT: performance.now(),
+        moved: 0,
+      });
+      if (!pedal) setAimFromTouch(pos);
+    }
+  }, { passive: false });
+  game.canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      const rec = game.touches.get(t.identifier);
+      if (!rec) continue;
+      const pos = touchToCanvas(t);
+      rec.moved += Math.hypot(pos.x - rec.lastX, pos.y - rec.lastY);
+      rec.lastX = pos.x; rec.lastY = pos.y;
+      if (rec.role === 'aim') setAimFromTouch(pos);
+    }
+  }, { passive: false });
+  function endTouch(t) {
+    const rec = game.touches.get(t.identifier);
+    if (!rec) return;
+    game.touches.delete(t.identifier);
+    if (rec.role === 'gas')   game.pedals.gasDown   = false;
+    if (rec.role === 'brake') game.pedals.brakeDown = false;
+    if (rec.role === 'aim' && game.state === State.PLAYING) {
+      const elapsed = performance.now() - rec.startT;
+      const disp = Math.hypot(rec.lastX - rec.startX, rec.lastY - rec.startY);
+      if (elapsed < 250 && disp < 8 && rec.moved < 16) trySnap();
+    }
+  }
+  game.canvas.addEventListener('touchend',    (e) => { e.preventDefault(); for (const t of e.changedTouches) endTouch(t); }, { passive: false });
+  game.canvas.addEventListener('touchcancel', (e) => { for (const t of e.changedTouches) endTouch(t); }, { passive: false });
 
   document.getElementById('startBtn').addEventListener('click', () => { Audio.ensure(); startRun(); });
   document.getElementById('againBtn').addEventListener('click', () => { startRun(); });
@@ -858,8 +934,8 @@
     game.timeLeft = Math.max(0, game.timeLeft - dt);
 
     // throttle
-    const up   = game.keys['w'] || game.keys['arrowup'];
-    const down = game.keys['s'] || game.keys['arrowdown'];
+    const up   = game.keys['w'] || game.keys['arrowup']   || game.pedals.gasDown;
+    const down = game.keys['s'] || game.keys['arrowdown'] || game.pedals.brakeDown;
     if (up)        game.speed += SPEED.ACCEL * dt;
     else if (down) game.speed -= SPEED.BRAKE * dt;
     else {
@@ -1234,7 +1310,30 @@
     ctx.fillText(Audio.isMuted() ? 'MUTED · M' : 'SOUND · M', game.w - 18, 26);
     ctx.fillStyle = '#9fb1bf';
     ctx.fillText('Drive: W/S   Aim: Mouse / IJKL   Shoot: Click / Space', game.w - 18, 44);
+    ctx.fillText('Touch: drag aim · tap snap · GAS / BRAKE pedals', game.w - 18, 60);
     ctx.textAlign = 'start';
+
+    // on-screen pedals (visible on every device, primary input on touch)
+    const pg = pedalGeometry();
+    drawPedal(ctx, pg.gas,   pg.r, game.pedals.gasDown,   '#7be0a3');
+    drawPedal(ctx, pg.brake, pg.r, game.pedals.brakeDown, '#ff8e7a');
+    ctx.restore();
+  }
+
+  function drawPedal(ctx, p, r, active, color) {
+    ctx.save();
+    ctx.globalAlpha = active ? 0.62 : 0.28;
+    ctx.fillStyle = active ? color : '#0a0f15';
+    ctx.beginPath(); ctx.arc(p.cx, p.cy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = active ? 1 : 0.7;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = active ? color : 'rgba(255,255,255,0.55)';
+    ctx.beginPath(); ctx.arc(p.cx, p.cy, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = active ? '#06222f' : '#cfe6ff';
+    ctx.font = '700 14px ui-sans-serif, system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(p.label, p.cx, p.cy);
     ctx.restore();
   }
 
