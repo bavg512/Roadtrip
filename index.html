@@ -150,7 +150,7 @@
     </div>
   </div>
 
-  <div class="corner">SHUTTER&nbsp;DRIVE&nbsp;·&nbsp;<span>v1</span></div>
+  <div class="corner">SHUTTER&nbsp;DRIVE&nbsp;·&nbsp;<span>v2</span></div>
 
 <script>
 (() => {
@@ -202,187 +202,68 @@
 
   // ============================================================
   // SPECIES TABLE
-  //   each draw(ctx, a, t) draws the animal centered at (0,0)
-  //   facing +X (right). The renderer flips horizontally when
-  //   a.dir < 0. Bounding box is centered on (a.x, a.y) with
-  //   size {w, h}.
+  //   Sprites are baked into an offscreen atlas at boot (see SPRITE
+  //   ATLAS section below). Each species declares a `sprite` key,
+  //   a `size` bounding box (CSS px), and behavior data.
+  //   The renderer flips horizontally when a.dir < 0.
   // ============================================================
   const SPECIES = [
     {
-      name: 'Deer', tier: 'common', basePoints: 110, spawnWeight: 5,
-      size: { w: 56, h: 42 }, behavior: 'stationary-graze', band: 'meadow',
-      draw(ctx, a, t) {
-        const bob = Math.sin(t * 2.3 + a.seed) * 1.2;
-        ctx.fillStyle = '#a07248';
-        roundRect(ctx, -22, -10, 44, 18, 5, true);                 // body
-        ctx.fillRect(-18, 8, 3, 12); ctx.fillRect(-10, 8, 3, 12);   // legs
-        ctx.fillRect(  6, 8, 3, 12); ctx.fillRect( 14, 8, 3, 12);
-        ctx.fillRect( 18, -10 + bob, 8, 9);                         // head
-        ctx.fillStyle = '#7a5634';
-        ctx.fillRect( 19, -16 + bob, 2, 6); ctx.fillRect(24,-16+bob,2,6); // antlers
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect( 24, -7 + bob, 1.5, 1.5);                      // eye
-      }
+      name: 'Deer', sprite: 'deer',
+      tier: 'common', basePoints: 110, spawnWeight: 5,
+      size: { w: 56, h: 48 }, behavior: 'stationary-graze', band: 'meadow',
     },
     {
-      name: 'Rabbit', tier: 'common', basePoints: 90, spawnWeight: 5,
-      size: { w: 26, h: 22 }, behavior: 'walk-across', band: 'meadow',
+      name: 'Rabbit', sprite: 'rabbit',
+      tier: 'common', basePoints: 90, spawnWeight: 5,
+      size: { w: 28, h: 24 }, behavior: 'walk-across', band: 'meadow',
       crossSpeed: 18,
-      draw(ctx, a, t) {
-        const hop = Math.abs(Math.sin(t * 6 + a.seed)) * 2;
-        ctx.fillStyle = '#cdcdc6';
-        roundRect(ctx, -10, -4 - hop, 18, 10, 4, true);             // body
-        ctx.fillRect(  6, -10 - hop, 2.5, 8);                        // ear
-        ctx.fillRect(  9, -10 - hop, 2.5, 8);
-        ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(-10, 2 - hop, 2, 0, Math.PI*2); ctx.fill(); // tail
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(  9, -3 - hop, 1.2, 1.2);
-      }
     },
     {
-      name: 'Bald Eagle', tier: 'common', basePoints: 160, spawnWeight: 3,
-      size: { w: 52, h: 28 }, behavior: 'fly-across', band: 'sky',
+      name: 'Bald Eagle', sprite: 'eagle',
+      tier: 'common', basePoints: 160, spawnWeight: 3,
+      size: { w: 60, h: 36 }, behavior: 'fly-across', band: 'sky',
       crossSpeed: 55,
-      draw(ctx, a, t) {
-        const flap = Math.sin(t * 5.5 + a.seed);
-        ctx.fillStyle = '#3a2a1c';                                   // body
-        roundRect(ctx, -10, -4, 22, 8, 3, true);
-        ctx.fillStyle = '#f3f3ef';                                   // head
-        ctx.beginPath(); ctx.arc(12, -2, 5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#f0b400';                                   // beak
-        ctx.beginPath(); ctx.moveTo(16,-2); ctx.lineTo(21,-1); ctx.lineTo(16,1); ctx.fill();
-        ctx.fillStyle = '#2c1f14';                                   // wings
-        ctx.beginPath();
-        ctx.moveTo(-8, -2);
-        ctx.lineTo(-22, -10 - flap * 6);
-        ctx.lineTo(-2, -5);
-        ctx.closePath(); ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo( 2, -2);
-        ctx.lineTo(-16, -8 - flap * 5);
-        ctx.lineTo(  4, -5);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#f3f3ef';                                   // tail
-        ctx.fillRect(-14, -1, 6, 3);
-      }
     },
     {
-      name: 'Moose', tier: 'uncommon', basePoints: 280, spawnWeight: 1.6,
-      size: { w: 78, h: 68 }, behavior: 'walk-across', band: 'treeline',
+      name: 'Moose', sprite: 'moose',
+      tier: 'uncommon', basePoints: 280, spawnWeight: 1.6,
+      size: { w: 98, h: 80 }, behavior: 'walk-across', band: 'treeline',
       crossSpeed: 9,
-      draw(ctx, a, t) {
-        const step = Math.sin(t * 1.6 + a.seed) * 1.5;
-        ctx.fillStyle = '#3b2b1b';
-        roundRect(ctx, -28, -12, 56, 24, 6, true);                  // body
-        ctx.fillRect(-22, 12, 4, 18 + step); ctx.fillRect(-14, 12, 4, 18 - step);
-        ctx.fillRect( 14, 12, 4, 18 + step); ctx.fillRect( 22, 12, 4, 18 - step);
-        ctx.fillRect( 24, -14, 14, 14);                              // neck/head base
-        ctx.beginPath(); ctx.moveTo(38,-14); ctx.lineTo(46,-6); ctx.lineTo(38, 2); ctx.closePath(); ctx.fill(); // snout
-        ctx.fillStyle = '#1f1410';                                   // antlers (palmate)
-        ctx.beginPath();
-        ctx.moveTo(28, -16); ctx.lineTo(22, -28); ctx.lineTo(34, -24); ctx.closePath(); ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(34, -16); ctx.lineTo(44, -28); ctx.lineTo(38, -22); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#000';
-        ctx.fillRect(34, -10, 1.8, 1.8);
-      }
     },
     {
-      name: 'Caribou', tier: 'uncommon', basePoints: 260, spawnWeight: 1.6,
-      size: { w: 64, h: 54 }, behavior: 'stationary-graze', band: 'meadow',
-      draw(ctx, a, t) {
-        const bob = Math.sin(t * 1.9 + a.seed) * 1;
-        ctx.fillStyle = '#8a6a4a';
-        roundRect(ctx, -24, -10, 48, 20, 5, true);
-        ctx.fillStyle = '#cdb89a';
-        ctx.fillRect(-22, -10, 8, 5);                                // mane patch
-        ctx.fillStyle = '#8a6a4a';
-        ctx.fillRect(-20, 10, 3, 16); ctx.fillRect(-12, 10, 3, 16);
-        ctx.fillRect(  8, 10, 3, 16); ctx.fillRect( 16, 10, 3, 16);
-        ctx.fillRect( 18, -10 + bob, 10, 10);                        // head
-        ctx.fillStyle = '#3e2a18';                                   // antlers (multi-tine)
-        for (let i = 0; i < 4; i++) {
-          ctx.fillRect(20 + i*2, -22 + bob, 1.4, 12);
-          ctx.fillRect(20 + i*2 + 1, -24 + bob, 4, 2);
-        }
-        ctx.fillStyle = '#000';
-        ctx.fillRect(26, -6 + bob, 1.5, 1.5);
-      }
+      name: 'Caribou', sprite: 'caribou',
+      tier: 'uncommon', basePoints: 260, spawnWeight: 1.6,
+      size: { w: 70, h: 60 }, behavior: 'stationary-graze', band: 'meadow',
     },
     {
-      name: 'Grizzly Bear', tier: 'rare', basePoints: 620, spawnWeight: 0.5,
-      size: { w: 80, h: 52 }, behavior: 'flee-when-near', band: 'treeline',
+      name: 'Mountain Goat', sprite: 'goat',
+      tier: 'uncommon', basePoints: 300, spawnWeight: 1.4,
+      size: { w: 58, h: 52 }, behavior: 'stationary-graze', band: 'meadow',
+    },
+    {
+      name: 'Grizzly Bear', sprite: 'bear',
+      tier: 'rare', basePoints: 620, spawnWeight: 0.5,
+      size: { w: 86, h: 54 }, behavior: 'flee-when-near', band: 'treeline',
       fleeRadius: 220, fleeSpeed: 120,
-      draw(ctx, a, t) {
-        const sway = Math.sin(t * 2 + a.seed) * 0.8;
-        ctx.fillStyle = '#6e4a28';
-        roundRect(ctx, -28, -12, 56, 26, 12, true);                 // body
-        ctx.fillRect(-22, 14, 7, 10); ctx.fillRect(-10, 14, 7, 10);  // legs
-        ctx.fillRect(  5, 14, 7, 10); ctx.fillRect( 17, 14, 7, 10);
-        ctx.beginPath(); ctx.arc(26, -2 + sway, 10, 0, Math.PI*2); ctx.fill(); // head
-        ctx.fillStyle = '#3b2614';                                   // snout
-        roundRect(ctx, 31, 1 + sway, 8, 5, 2, true);
-        ctx.fillStyle = '#6e4a28';                                   // ears
-        ctx.beginPath(); ctx.arc(22, -10 + sway, 3, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(30, -10 + sway, 3, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#000';
-        ctx.fillRect(31, -4 + sway, 1.6, 1.6);
-        ctx.fillStyle = '#1d1208';
-        ctx.fillRect(38, 2 + sway, 1.5, 1.5);                        // nose
-      }
     },
     {
-      name: 'Red Fox', tier: 'rare', basePoints: 520, spawnWeight: 0.6,
-      size: { w: 46, h: 24 }, behavior: 'flee-when-near', band: 'meadow',
+      name: 'Red Fox', sprite: 'fox',
+      tier: 'rare', basePoints: 520, spawnWeight: 0.6,
+      size: { w: 52, h: 26 }, behavior: 'flee-when-near', band: 'meadow',
       fleeRadius: 180, fleeSpeed: 140,
-      draw(ctx, a, t) {
-        const tail = Math.sin(t * 3 + a.seed) * 4;
-        ctx.fillStyle = '#c95a1f';
-        roundRect(ctx, -18, -5, 30, 12, 4, true);                   // body
-        ctx.fillRect(-18, 6, 2.5, 8); ctx.fillRect(-12, 6, 2.5, 8);  // legs
-        ctx.fillRect(  6, 6, 2.5, 8); ctx.fillRect( 10, 6, 2.5, 8);
-        ctx.beginPath();                                             // tail
-        ctx.moveTo(-18, -2);
-        ctx.quadraticCurveTo(-30, -4 + tail, -32, 4 + tail);
-        ctx.quadraticCurveTo(-22, 2, -16, 4);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(-30, 4 + tail, 3, 0, Math.PI*2); ctx.fill(); // tail tip
-        ctx.fillStyle = '#c95a1f';
-        ctx.beginPath(); ctx.moveTo(12,-4); ctx.lineTo(20,-6); ctx.lineTo(18,2); ctx.lineTo(12,2); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(13, -1, 6, 3);
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(16, -3, 1.4, 1.4);
-        ctx.fillStyle = '#1a1a1a';                                   // ears
-        ctx.beginPath(); ctx.moveTo(11,-8); ctx.lineTo(14,-3); ctx.lineTo(8,-3); ctx.closePath(); ctx.fill();
-      }
     },
     {
-      name: 'Gray Wolf', tier: 'rare', basePoints: 680, spawnWeight: 0.45,
-      size: { w: 64, h: 32 }, behavior: 'walk-across', band: 'treeline',
+      name: 'Gray Wolf', sprite: 'wolf',
+      tier: 'rare', basePoints: 680, spawnWeight: 0.45,
+      size: { w: 68, h: 34 }, behavior: 'walk-across', band: 'treeline',
       crossSpeed: 22,
-      draw(ctx, a, t) {
-        const step = Math.sin(t * 3 + a.seed) * 1.5;
-        ctx.fillStyle = '#6e7480';
-        roundRect(ctx, -22, -8, 38, 16, 5, true);                   // body
-        ctx.fillRect(-20, 8, 3, 12 + step); ctx.fillRect(-12, 8, 3, 12 - step);
-        ctx.fillRect(  8, 8, 3, 12 + step); ctx.fillRect( 14, 8, 3, 12 - step);
-        ctx.beginPath();                                             // tail
-        ctx.moveTo(-22, -4);
-        ctx.quadraticCurveTo(-34, -8, -34, 0);
-        ctx.quadraticCurveTo(-26, 0, -20, 2);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#5a606a';
-        ctx.fillRect(14, -8, 12, 10);                                 // head
-        ctx.beginPath(); ctx.moveTo(26,-3); ctx.lineTo(32,-1); ctx.lineTo(26,3); ctx.closePath(); ctx.fill(); // snout
-        ctx.fillStyle = '#3a3e46';                                    // ears
-        ctx.beginPath(); ctx.moveTo(15,-10); ctx.lineTo(18,-4); ctx.lineTo(13,-4); ctx.closePath(); ctx.fill();
-        ctx.beginPath(); ctx.moveTo(22,-10); ctx.lineTo(25,-4); ctx.lineTo(20,-4); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#fbd351';
-        ctx.fillRect(24, -5, 1.5, 1.5);                               // eye
-      }
+    },
+    {
+      name: 'Black Bear Cub', sprite: 'cub',
+      tier: 'rare', basePoints: 560, spawnWeight: 0.4,
+      size: { w: 48, h: 38 }, behavior: 'flee-when-near', band: 'treeline',
+      fleeRadius: 200, fleeSpeed: 130,
     },
   ];
 
@@ -432,6 +313,844 @@
     return inner.x >= outer.x && inner.y >= outer.y &&
            inner.x + inner.w <= outer.x + outer.w &&
            inner.y + inner.h <= outer.y + outer.h;
+  }
+
+  // ============================================================
+  // SPRITE PAINTERS
+  //   Each painter takes (ctx, frameName) and draws the animal
+  //   facing +X (right) centered on (0,0). The atlas builder calls
+  //   these once at boot into an offscreen canvas. Render uses
+  //   ctx.drawImage from that atlas — no per-frame procedural draws.
+  // ============================================================
+
+  // Small helpers shared by painters.
+  function fillEllipse(ctx, x, y, rx, ry) {
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  // Soft top-to-bottom shade on a rounded body. baseTop=darker (back), baseBot=lighter (belly).
+  function shadedBody(ctx, x, y, w, h, r, baseTop, baseBot) {
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, baseTop); g.addColorStop(1, baseBot);
+    ctx.fillStyle = g;
+    roundRect(ctx, x, y, w, h, r, true);
+  }
+  // Deterministic speckle/dither for fur texture.
+  function speckle(ctx, x, y, w, h, color, density, seed) {
+    ctx.fillStyle = color;
+    const n = Math.max(1, Math.floor(w * h * density));
+    let s = seed | 0;
+    for (let i = 0; i < n; i++) {
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      const px = x + (s % 1000) / 1000 * w;
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      const py = y + (s % 1000) / 1000 * h;
+      ctx.fillRect(px, py, 1, 1);
+    }
+  }
+  function eye(ctx, x, y, r, c) {
+    ctx.fillStyle = c || '#0a0604';
+    fillEllipse(ctx, x, y, r, r);
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillRect(x + r * 0.2, y - r * 0.3, Math.max(0.6, r * 0.4), Math.max(0.6, r * 0.4));
+  }
+  // Articulated leg: thigh + calf, with optional "extended" pose for sprint.
+  function leg(ctx, x, yTop, len, w, color, shadow, ext) {
+    ctx.fillStyle = color;
+    if (ext) {
+      // extended (sprint) — angled
+      ctx.beginPath();
+      ctx.moveTo(x - w * 0.5, yTop);
+      ctx.lineTo(x + w * 0.5, yTop);
+      ctx.lineTo(x + w * 1.4, yTop + len);
+      ctx.lineTo(x + w * 0.4, yTop + len);
+      ctx.closePath(); ctx.fill();
+    } else {
+      ctx.fillRect(x - w * 0.5, yTop, w, len);
+    }
+    if (shadow) {
+      ctx.fillStyle = shadow;
+      if (ext) ctx.fillRect(x + w * 0.6, yTop + len * 0.55, w * 0.7, len * 0.45);
+      else     ctx.fillRect(x - w * 0.5, yTop + len * 0.7,  w,       len * 0.3);
+    }
+  }
+
+  // -- Per-species painters. The atlas builder picks a frame name and
+  //    each painter branches on it for limb / pose variation. ---------
+
+  const painters = {
+    deer(ctx, f) {
+      const stepA = f === 'walkA' ? 1 : f === 'walkB' ? -1 : 0;
+      const stepB = -stepA;
+      const headDown = f === 'graze';
+      // shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      fillEllipse(ctx, 0, 22, 22, 3);
+      // body
+      const bodyTop = '#7a5232', bodyMid = '#a87a4a', bodyBot = '#c89868';
+      shadedBody(ctx, -22, -8, 42, 18, 7, bodyTop, bodyMid);
+      // belly highlight
+      ctx.fillStyle = bodyBot;
+      roundRect(ctx, -16, 4, 30, 6, 3, true);
+      // white belly + rump patch
+      ctx.fillStyle = '#f3e6cf';
+      roundRect(ctx, -18, 8, 18, 3, 1.5, true);
+      roundRect(ctx, -22, -2, 5, 8, 2, true);
+      // back darker shade strip
+      ctx.fillStyle = 'rgba(40,24,10,0.25)';
+      roundRect(ctx, -20, -8, 38, 4, 3, true);
+      // legs (4)
+      leg(ctx, -16, 10, 14 + stepA, 3, bodyTop, '#3a2614');
+      leg(ctx,  -8, 10, 14 + stepB, 3, bodyTop, '#3a2614');
+      leg(ctx,   8, 10, 14 + stepA, 3, bodyTop, '#3a2614');
+      leg(ctx,  14, 10, 14 + stepB, 3, bodyTop, '#3a2614');
+      // tail
+      ctx.fillStyle = '#f3e6cf';
+      roundRect(ctx, -23, -5, 4, 6, 1.5, true);
+      // neck + head
+      const hy = headDown ? 6 : -14;
+      const hx = headDown ? 24 : 22;
+      ctx.fillStyle = bodyMid;
+      ctx.beginPath();
+      ctx.moveTo(14, -6);
+      ctx.lineTo(hx - 6, hy - 2);
+      ctx.lineTo(hx + 2, hy + 4);
+      ctx.lineTo(16, 2);
+      ctx.closePath(); ctx.fill();
+      // head shape
+      ctx.fillStyle = bodyMid;
+      roundRect(ctx, hx - 4, hy - 4, 12, 10, 3, true);
+      // muzzle
+      ctx.fillStyle = bodyTop;
+      roundRect(ctx, hx + 5, hy + 1, 5, 4, 1.5, true);
+      // white snout strip
+      ctx.fillStyle = '#f3e6cf';
+      ctx.fillRect(hx + 7, hy + 2, 3, 1.5);
+      // antlers (only on idle / walk frames, not graze for elegance)
+      if (!headDown) {
+        ctx.strokeStyle = '#6a4a26';
+        ctx.lineWidth = 1.8;
+        ctx.lineCap = 'round';
+        for (const baseX of [hx + 1, hx + 6]) {
+          ctx.beginPath();
+          ctx.moveTo(baseX, hy - 3);
+          ctx.lineTo(baseX + 2, hy - 12);
+          ctx.lineTo(baseX - 4, hy - 15);
+          ctx.moveTo(baseX + 2, hy - 9); ctx.lineTo(baseX + 7, hy - 13);
+          ctx.moveTo(baseX + 2, hy - 12); ctx.lineTo(baseX + 9, hy - 16);
+          ctx.stroke();
+        }
+        ctx.lineCap = 'butt';
+      }
+      // ear
+      ctx.fillStyle = bodyTop;
+      ctx.beginPath();
+      ctx.moveTo(hx, hy - 4); ctx.lineTo(hx - 3, hy - 8); ctx.lineTo(hx + 1, hy - 6);
+      ctx.closePath(); ctx.fill();
+      // eye
+      eye(ctx, hx + 4, hy, 1.2);
+      // fur speckle on back
+      speckle(ctx, -18, -7, 34, 5, 'rgba(60,32,12,0.45)', 0.06, 17);
+      // white spots on rump
+      if (f === 'idle' || f === 'graze') {
+        ctx.fillStyle = 'rgba(255,235,200,0.55)';
+        ctx.fillRect(-12, -3, 1.5, 1.5);
+        ctx.fillRect(-7,  -1, 1.5, 1.5);
+        ctx.fillRect(-15,  2, 1.5, 1.5);
+      }
+    },
+
+    rabbit(ctx, f) {
+      const hop = f === 'hopA' ? -2 : f === 'hopB' ? 1 : 0;
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      fillEllipse(ctx, 0, 11, 11, 2);
+      // body
+      shadedBody(ctx, -10, -4 + hop, 18, 11, 5, '#7a6a5a', '#a89888');
+      // chest white
+      ctx.fillStyle = '#e8dccc';
+      roundRect(ctx, -8, 0 + hop, 10, 5, 2, true);
+      // head
+      ctx.fillStyle = '#9c8c7c';
+      fillEllipse(ctx, 7, -1 + hop, 5, 4.5);
+      ctx.fillStyle = '#e8dccc';
+      ctx.fillRect(8, 1 + hop, 4, 2);
+      // ears
+      ctx.fillStyle = '#7a6a5a';
+      roundRect(ctx, 5, -10 + hop, 2, 7, 1, true);
+      roundRect(ctx, 8, -10 + hop, 2, 7, 1, true);
+      ctx.fillStyle = '#d49484';
+      ctx.fillRect(5.5, -9 + hop, 1, 5);
+      ctx.fillRect(8.5, -9 + hop, 1, 5);
+      // legs
+      ctx.fillStyle = '#7a6a5a';
+      if (f === 'hopA') {
+        // tucked
+        roundRect(ctx, -4, 4 + hop, 4, 4, 1.5, true);
+        roundRect(ctx,  2, 4 + hop, 4, 4, 1.5, true);
+      } else {
+        roundRect(ctx, -4, 5, 3, 5, 1, true);
+        roundRect(ctx,  2, 5, 3, 5, 1, true);
+        roundRect(ctx, -8, 4, 4, 5, 1.5, true);   // back haunch
+      }
+      // tail
+      ctx.fillStyle = '#fff';
+      fillEllipse(ctx, -11, 2 + hop, 2.5, 2.5);
+      // eye + nose
+      eye(ctx, 9, -1 + hop, 1);
+      ctx.fillStyle = '#3a1c14';
+      ctx.fillRect(11.5, 1 + hop, 1, 1);
+      // whiskers
+      ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(12, 2 + hop); ctx.lineTo(14, 1 + hop);
+      ctx.moveTo(12, 3 + hop); ctx.lineTo(14, 3 + hop); ctx.stroke();
+    },
+
+    eagle(ctx, f) {
+      const flap = f === 'flapUp' ? -7 : f === 'flapDown' ? 5 : -1;
+      const tipUp = f === 'flapUp';
+      const isGlide = f === 'glide';
+      // body
+      ctx.fillStyle = '#2c1c10';
+      fillEllipse(ctx, 0, 0, 11, 5);
+      // belly highlight
+      ctx.fillStyle = '#4a3520';
+      roundRect(ctx, -8, 1, 16, 3, 1.5, true);
+      // wings — two layered shapes per side
+      ctx.fillStyle = '#2a1c10';
+      // far wing (back)
+      ctx.beginPath();
+      ctx.moveTo(-4, -1);
+      ctx.quadraticCurveTo(-18, flap - 4, -26, flap + 2);
+      ctx.quadraticCurveTo(-14, flap + 4, -3, 2);
+      ctx.closePath(); ctx.fill();
+      // wing feather highlights
+      ctx.fillStyle = '#5a4028';
+      ctx.beginPath();
+      ctx.moveTo(-6, -1);
+      ctx.quadraticCurveTo(-16, flap - 1, -22, flap + 3);
+      ctx.quadraticCurveTo(-12, flap + 3, -5, 1);
+      ctx.closePath(); ctx.fill();
+      // primary feather tips (lighter)
+      ctx.fillStyle = '#1a0e06';
+      for (let i = 0; i < 4; i++) {
+        const ang = -2.0 - i * 0.15;
+        const tx = -22 - Math.cos(ang) * 5;
+        const ty = flap + 2 + Math.sin(ang) * 5;
+        ctx.beginPath();
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(tx - 3, ty + 2);
+        ctx.lineTo(tx - 2, ty + 4);
+        ctx.closePath(); ctx.fill();
+      }
+      // near wing — only when wings are visibly horizontal (glide/mid)
+      if (!tipUp) {
+        ctx.fillStyle = '#3a2818';
+        ctx.beginPath();
+        ctx.moveTo(2, -1);
+        ctx.quadraticCurveTo(-6, flap * 0.4 - 2, -8, flap * 0.4);
+        ctx.quadraticCurveTo(-2, 1, 4, 1);
+        ctx.closePath(); ctx.fill();
+      }
+      // tail (white)
+      ctx.fillStyle = '#f3eee0';
+      ctx.beginPath();
+      ctx.moveTo(-9, -1);
+      ctx.lineTo(-16, 0);
+      ctx.lineTo(-16, 3);
+      ctx.lineTo(-9, 3);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#d4c8a8';
+      ctx.fillRect(-15, 1.4, 6, 0.5);
+      // head (white) — bald eagle
+      ctx.fillStyle = '#f3eee5';
+      fillEllipse(ctx, 12, -1, 5.5, 4.5);
+      // beak
+      ctx.fillStyle = '#f0a820';
+      ctx.beginPath();
+      ctx.moveTo(15, -1); ctx.lineTo(22, 0); ctx.lineTo(15, 2);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#c48010';
+      ctx.beginPath();
+      ctx.moveTo(15, 0); ctx.lineTo(20, 1); ctx.lineTo(15, 2); ctx.closePath(); ctx.fill();
+      // eye
+      eye(ctx, 14, -1.5, 1.2, '#1c0c04');
+      // talons (only visible when gliding / wings up)
+      if (isGlide || tipUp) {
+        ctx.fillStyle = '#f0a820';
+        ctx.fillRect(0, 5, 2, 3);
+        ctx.fillRect(4, 5, 2, 3);
+      }
+    },
+
+    moose(ctx, f) {
+      const stepA = f === 'walkA' ? 1.4 : f === 'walkB' ? -1.4 : 0;
+      const stepB = -stepA;
+      const headDown = f === 'graze';
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      fillEllipse(ctx, 0, 32, 32, 4);
+      // body
+      shadedBody(ctx, -28, -12, 56, 28, 9, '#2a1c0e', '#4a341e');
+      // shoulder hump
+      ctx.fillStyle = '#3a2410';
+      ctx.beginPath();
+      ctx.moveTo(-2, -12); ctx.quadraticCurveTo(8, -22, 18, -12); ctx.lineTo(-2, -10);
+      ctx.closePath(); ctx.fill();
+      // underbelly darker
+      ctx.fillStyle = '#1c1208';
+      roundRect(ctx, -22, 8, 44, 6, 3, true);
+      // legs (4) — bottoms even darker (mud / hoof)
+      const legCol = '#2a1c0e', hoof = '#0a0604';
+      leg(ctx, -20, 14, 18 + stepA, 4.5, legCol, hoof);
+      leg(ctx, -10, 14, 18 + stepB, 4.5, legCol, hoof);
+      leg(ctx,  10, 14, 18 + stepA, 4.5, legCol, hoof);
+      leg(ctx,  20, 14, 18 + stepB, 4.5, legCol, hoof);
+      // tail (tiny)
+      ctx.fillStyle = '#1c1208';
+      ctx.fillRect(-29, -6, 3, 4);
+      // neck (down-sloped)
+      const hx = headDown ? 36 : 28;
+      const hy = headDown ? 18 : -10;
+      ctx.fillStyle = '#3a2410';
+      ctx.beginPath();
+      ctx.moveTo(18, -10);
+      ctx.lineTo(hx + 2, hy - 4);
+      ctx.lineTo(hx + 8, hy + 6);
+      ctx.lineTo(20, 4);
+      ctx.closePath(); ctx.fill();
+      // head — long snout
+      ctx.fillStyle = '#3a2410';
+      roundRect(ctx, hx, hy - 4, 16, 12, 3, true);
+      // muzzle bulb
+      ctx.fillStyle = '#2a1c0e';
+      roundRect(ctx, hx + 12, hy - 2, 8, 9, 3, true);
+      // dewlap / bell
+      ctx.fillStyle = '#1c1208';
+      roundRect(ctx, hx - 2, hy + 6, 5, 5, 2, true);
+      // antlers (palmate) — only on non-graze frames
+      if (!headDown) {
+        ctx.fillStyle = '#7a5c3e';
+        ctx.strokeStyle = '#4a3220';
+        ctx.lineWidth = 1;
+        // left palm — broader, with tines
+        ctx.beginPath();
+        ctx.moveTo(hx + 4, hy - 5);
+        ctx.lineTo(hx - 4, hy - 12);
+        ctx.lineTo(hx - 14, hy - 18);
+        ctx.lineTo(hx - 18, hy - 14);
+        ctx.lineTo(hx - 14, hy - 8);
+        ctx.lineTo(hx - 6, hy - 6);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        // tines on left
+        ctx.beginPath();
+        ctx.moveTo(hx - 8, hy - 14); ctx.lineTo(hx - 8, hy - 19);
+        ctx.moveTo(hx - 12, hy - 16); ctx.lineTo(hx - 16, hy - 20);
+        ctx.lineWidth = 1.5; ctx.stroke();
+        // right palm
+        ctx.fillStyle = '#7a5c3e';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(hx + 8, hy - 5);
+        ctx.lineTo(hx + 16, hy - 12);
+        ctx.lineTo(hx + 26, hy - 18);
+        ctx.lineTo(hx + 30, hy - 14);
+        ctx.lineTo(hx + 26, hy - 8);
+        ctx.lineTo(hx + 18, hy - 6);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        // tines on right
+        ctx.beginPath();
+        ctx.moveTo(hx + 20, hy - 14); ctx.lineTo(hx + 20, hy - 19);
+        ctx.moveTo(hx + 24, hy - 16); ctx.lineTo(hx + 28, hy - 20);
+        ctx.lineWidth = 1.5; ctx.stroke();
+        // palm highlights
+        ctx.fillStyle = '#a88a5e';
+        ctx.fillRect(hx - 12, hy - 14, 4, 1.5);
+        ctx.fillRect(hx + 18, hy - 14, 4, 1.5);
+      }
+      // ear
+      ctx.fillStyle = '#1c1208';
+      ctx.beginPath();
+      ctx.moveTo(hx + 2, hy - 5); ctx.lineTo(hx, hy - 10); ctx.lineTo(hx + 5, hy - 7);
+      ctx.closePath(); ctx.fill();
+      // eye
+      eye(ctx, hx + 6, hy, 1.4);
+      // fur speckle
+      speckle(ctx, -26, -10, 52, 18, 'rgba(80,52,28,0.35)', 0.04, 41);
+    },
+
+    caribou(ctx, f) {
+      const stepA = f === 'walkA' ? 1 : f === 'walkB' ? -1 : 0;
+      const stepB = -stepA;
+      const headDown = f === 'graze';
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      fillEllipse(ctx, 0, 26, 26, 3);
+      // body
+      shadedBody(ctx, -24, -10, 48, 22, 8, '#6a4a30', '#a08260');
+      // back darker stripe
+      ctx.fillStyle = 'rgba(40,24,12,0.3)';
+      roundRect(ctx, -22, -10, 44, 5, 3, true);
+      // belly + chest white patch
+      ctx.fillStyle = '#e8d8b8';
+      roundRect(ctx, -20, 4, 38, 8, 3, true);
+      // mane
+      ctx.fillStyle = '#d8c2a0';
+      ctx.beginPath();
+      ctx.moveTo(8, -10);
+      ctx.lineTo(22, -8);
+      ctx.lineTo(20, 4);
+      ctx.lineTo(6, 2);
+      ctx.closePath(); ctx.fill();
+      // legs
+      const legCol = '#5a3e22';
+      leg(ctx, -18, 12, 16 + stepA, 3.5, legCol, '#1c1208');
+      leg(ctx, -10, 12, 16 + stepB, 3.5, legCol, '#1c1208');
+      leg(ctx,   8, 12, 16 + stepA, 3.5, legCol, '#1c1208');
+      leg(ctx,  16, 12, 16 + stepB, 3.5, legCol, '#1c1208');
+      // tail
+      ctx.fillStyle = '#e8d8b8';
+      ctx.fillRect(-25, -3, 4, 4);
+      // neck + head
+      const hx = headDown ? 30 : 22;
+      const hy = headDown ? 14 : -12;
+      ctx.fillStyle = '#7a5638';
+      ctx.beginPath();
+      ctx.moveTo(16, -8);
+      ctx.lineTo(hx + 2, hy - 2);
+      ctx.lineTo(hx + 6, hy + 8);
+      ctx.lineTo(18, 4);
+      ctx.closePath(); ctx.fill();
+      // head
+      ctx.fillStyle = '#7a5638';
+      roundRect(ctx, hx - 2, hy - 4, 12, 11, 3, true);
+      // muzzle
+      ctx.fillStyle = '#4a3220';
+      roundRect(ctx, hx + 7, hy + 1, 5, 5, 1.5, true);
+      // white muzzle band
+      ctx.fillStyle = '#e8d8b8';
+      ctx.fillRect(hx + 8, hy + 3, 4, 1.5);
+      // antlers — large branching multi-tine
+      if (!headDown) {
+        ctx.strokeStyle = '#9a7a4a';
+        ctx.lineWidth = 1.8;
+        for (const baseX of [hx, hx + 6]) {
+          ctx.beginPath();
+          ctx.moveTo(baseX, hy - 3);
+          ctx.lineTo(baseX - 2, hy - 16);
+          // tines
+          ctx.moveTo(baseX - 1, hy - 8); ctx.lineTo(baseX + 5, hy - 12);
+          ctx.moveTo(baseX - 2, hy - 12); ctx.lineTo(baseX - 8, hy - 15);
+          ctx.moveTo(baseX - 2, hy - 16); ctx.lineTo(baseX + 3, hy - 20);
+          ctx.moveTo(baseX - 2, hy - 16); ctx.lineTo(baseX - 6, hy - 19);
+          ctx.stroke();
+        }
+        // antler highlights
+        ctx.fillStyle = '#c4a474';
+        ctx.fillRect(hx + 2, hy - 18, 1.5, 1.5);
+        ctx.fillRect(hx - 6, hy - 18, 1.5, 1.5);
+      }
+      // ear
+      ctx.fillStyle = '#5a3e22';
+      ctx.beginPath();
+      ctx.moveTo(hx + 1, hy - 4); ctx.lineTo(hx - 2, hy - 9); ctx.lineTo(hx + 3, hy - 6);
+      ctx.closePath(); ctx.fill();
+      eye(ctx, hx + 4, hy, 1.3);
+      speckle(ctx, -22, -8, 44, 14, 'rgba(60,38,20,0.3)', 0.04, 53);
+    },
+
+    bear(ctx, f) {
+      const sprint = f === 'sprint';
+      const stepA = f === 'walkA' ? 1.2 : f === 'walkB' ? -1.2 : 0;
+      const stepB = -stepA;
+      const bodyDip = sprint ? 4 : 0;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      fillEllipse(ctx, 0, 22, 30, 4);
+      // body — bulky
+      shadedBody(ctx, -28, -10 + bodyDip, 54, 26, 13, '#3a2410', '#6a4828');
+      // shoulder hump
+      ctx.fillStyle = '#4a2e14';
+      ctx.beginPath();
+      ctx.moveTo(-12, -10 + bodyDip); ctx.quadraticCurveTo(0, -22 + bodyDip, 14, -10 + bodyDip);
+      ctx.lineTo(-12, -8 + bodyDip);
+      ctx.closePath(); ctx.fill();
+      // back fur highlight
+      ctx.fillStyle = 'rgba(120,90,50,0.35)';
+      roundRect(ctx, -24, -8 + bodyDip, 48, 4, 3, true);
+      // legs
+      const legCol = '#2a1808', claw = '#0a0604';
+      leg(ctx, -22, 14 + bodyDip, 10 - bodyDip * 0.5, 7, legCol, claw, sprint);
+      leg(ctx, -10, 14 + bodyDip, 10 - bodyDip * 0.5, 7, legCol, claw, false);
+      leg(ctx,   6, 14 + bodyDip, 10 - bodyDip * 0.5, 7, legCol, claw, false);
+      leg(ctx,  18, 14 + bodyDip, 10 - bodyDip * 0.5, 7, legCol, claw, sprint);
+      // head
+      const hx = sprint ? 30 : 26;
+      const hy = sprint ? 2 + bodyDip : -4;
+      ctx.fillStyle = '#4a2e14';
+      fillEllipse(ctx, hx, hy, 10, 9);
+      // snout
+      ctx.fillStyle = '#2a1808';
+      roundRect(ctx, hx + 4, hy + 1, 9, 7, 2.5, true);
+      // muzzle highlight
+      ctx.fillStyle = '#6a4828';
+      roundRect(ctx, hx + 5, hy + 1, 7, 3, 1.5, true);
+      // nose
+      ctx.fillStyle = '#0a0604';
+      fillEllipse(ctx, hx + 12, hy + 4, 1.6, 1.4);
+      // ears (small, rounded)
+      ctx.fillStyle = '#3a2410';
+      fillEllipse(ctx, hx - 5, hy - 6, 3, 3);
+      fillEllipse(ctx, hx + 4, hy - 8, 3, 3);
+      ctx.fillStyle = '#1c1208';
+      fillEllipse(ctx, hx - 5, hy - 5, 1.5, 1.5);
+      fillEllipse(ctx, hx + 4, hy - 7, 1.5, 1.5);
+      // eye + small reflection
+      eye(ctx, hx + 6, hy - 1, 1.5, '#0a0604');
+      // fur texture
+      speckle(ctx, -26, -8 + bodyDip, 50, 22, 'rgba(20,12,4,0.45)', 0.07, 89);
+      speckle(ctx, -22, -4 + bodyDip, 44, 14, 'rgba(170,120,70,0.25)', 0.03, 7);
+    },
+
+    fox(ctx, f) {
+      const sprint = f === 'sprint';
+      const stepA = f === 'walkA' ? 1.2 : f === 'walkB' ? -1.2 : 0;
+      const stepB = -stepA;
+      const tailSway = sprint ? -4 : Math.sin((f.charCodeAt(0) || 0) * 0.7) * 2;
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      fillEllipse(ctx, 0, 12, 18, 2.5);
+      // body
+      shadedBody(ctx, -16, -5, 28, 12, 5, '#9a3a10', '#d96a26');
+      // belly + chest white
+      ctx.fillStyle = '#f3e6d4';
+      roundRect(ctx, -10, 3, 18, 4, 2, true);
+      // tail — fluffy
+      ctx.fillStyle = '#9a3a10';
+      ctx.beginPath();
+      ctx.moveTo(-15, -2);
+      ctx.quadraticCurveTo(-26, -6 + tailSway, -32, 2 + tailSway);
+      ctx.quadraticCurveTo(-26, 4 + tailSway, -22, 4);
+      ctx.quadraticCurveTo(-18, 2, -14, 3);
+      ctx.closePath(); ctx.fill();
+      // tail orange→light gradient overlay
+      ctx.fillStyle = '#d96a26';
+      ctx.beginPath();
+      ctx.moveTo(-15, -1);
+      ctx.quadraticCurveTo(-22, -2 + tailSway, -28, 2 + tailSway);
+      ctx.quadraticCurveTo(-22, 2, -15, 2);
+      ctx.closePath(); ctx.fill();
+      // white tail tip
+      ctx.fillStyle = '#f3e6d4';
+      fillEllipse(ctx, -31, 2 + tailSway, 3, 2.5);
+      // legs (dark socks)
+      const legCol = '#1a0c04';
+      leg(ctx, -12, 6, 7 + stepA, 2.2, '#9a3a10', null, sprint);
+      leg(ctx,  -6, 6, 7 + stepB, 2.2, '#9a3a10', null, false);
+      leg(ctx,   4, 6, 7 + stepA, 2.2, '#9a3a10', null, false);
+      leg(ctx,   9, 6, 7 + stepB, 2.2, '#9a3a10', null, sprint);
+      // dark socks bottoms
+      ctx.fillStyle = legCol;
+      ctx.fillRect(-13.1, 10 + stepA * 0.4, 2.2, 3);
+      ctx.fillRect(-7.1,  10 + stepB * 0.4, 2.2, 3);
+      ctx.fillRect(2.9,   10 + stepA * 0.4, 2.2, 3);
+      ctx.fillRect(7.9,   10 + stepB * 0.4, 2.2, 3);
+      // head — triangular
+      ctx.fillStyle = '#d96a26';
+      ctx.beginPath();
+      ctx.moveTo(11, -4);
+      ctx.lineTo(22, -1);
+      ctx.lineTo(20, 3);
+      ctx.lineTo(11, 4);
+      ctx.closePath(); ctx.fill();
+      // white muzzle/cheek
+      ctx.fillStyle = '#f3e6d4';
+      ctx.beginPath();
+      ctx.moveTo(14, 0);
+      ctx.lineTo(22, -1);
+      ctx.lineTo(20, 3);
+      ctx.lineTo(14, 4);
+      ctx.closePath(); ctx.fill();
+      // ears — pointed black-tipped
+      ctx.fillStyle = '#d96a26';
+      ctx.beginPath(); ctx.moveTo(10, -4); ctx.lineTo(13, -10); ctx.lineTo(14, -3); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(15, -4); ctx.lineTo(18, -10); ctx.lineTo(18, -3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#1a0c04';
+      ctx.beginPath(); ctx.moveTo(11, -6); ctx.lineTo(13, -10); ctx.lineTo(14, -6); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(16, -6); ctx.lineTo(18, -10); ctx.lineTo(18, -6); ctx.closePath(); ctx.fill();
+      // nose
+      ctx.fillStyle = '#0a0604';
+      fillEllipse(ctx, 21.5, 1, 1.2, 1);
+      // eye — narrow
+      eye(ctx, 16, -1, 1, '#0a0604');
+    },
+
+    wolf(ctx, f) {
+      const stepA = f === 'walkA' ? 1.3 : f === 'walkB' ? -1.3 : 0;
+      const stepB = -stepA;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      fillEllipse(ctx, 0, 14, 24, 3);
+      // body
+      shadedBody(ctx, -22, -8, 40, 16, 6, '#3a3a3a', '#8a8480');
+      // back dark saddle
+      ctx.fillStyle = '#2a2a2a';
+      roundRect(ctx, -18, -8, 30, 6, 3, true);
+      // belly white-gray
+      ctx.fillStyle = '#cfc8b8';
+      roundRect(ctx, -16, 3, 26, 4, 2, true);
+      // tail (bushy, low)
+      ctx.fillStyle = '#3a3a3a';
+      ctx.beginPath();
+      ctx.moveTo(-21, -2);
+      ctx.quadraticCurveTo(-32, -2, -34, 4);
+      ctx.quadraticCurveTo(-28, 4, -22, 2);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#1a1a1a';
+      fillEllipse(ctx, -33, 4, 2, 2);
+      // legs
+      const legCol = '#2c2c2c';
+      leg(ctx, -18, 8, 12 + stepA, 3, legCol, '#0a0a0a');
+      leg(ctx, -10, 8, 12 + stepB, 3, legCol, '#0a0a0a');
+      leg(ctx,   8, 8, 12 + stepA, 3, legCol, '#0a0a0a');
+      leg(ctx,  14, 8, 12 + stepB, 3, legCol, '#0a0a0a');
+      // neck
+      ctx.fillStyle = '#6a6660';
+      ctx.beginPath();
+      ctx.moveTo(12, -6);
+      ctx.lineTo(22, -8);
+      ctx.lineTo(26, 4);
+      ctx.lineTo(14, 4);
+      ctx.closePath(); ctx.fill();
+      // head
+      ctx.fillStyle = '#6a6660';
+      roundRect(ctx, 18, -8, 14, 12, 3, true);
+      // muzzle
+      ctx.fillStyle = '#3a3a3a';
+      ctx.beginPath();
+      ctx.moveTo(30, -2); ctx.lineTo(36, 0); ctx.lineTo(30, 4); ctx.closePath(); ctx.fill();
+      // white snout underside
+      ctx.fillStyle = '#cfc8b8';
+      ctx.beginPath();
+      ctx.moveTo(28, 2); ctx.lineTo(34, 3); ctx.lineTo(28, 4); ctx.closePath(); ctx.fill();
+      // ears — pointed
+      ctx.fillStyle = '#3a3a3a';
+      ctx.beginPath(); ctx.moveTo(18, -8); ctx.lineTo(20, -14); ctx.lineTo(23, -6); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(25, -8); ctx.lineTo(27, -14); ctx.lineTo(30, -6); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#6a4830';
+      ctx.beginPath(); ctx.moveTo(20, -8); ctx.lineTo(21, -12); ctx.lineTo(22, -8); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(27, -8); ctx.lineTo(28, -12); ctx.lineTo(29, -8); ctx.closePath(); ctx.fill();
+      // nose
+      ctx.fillStyle = '#0a0a0a';
+      fillEllipse(ctx, 35, 0, 1.4, 1);
+      // eye — amber, narrow
+      eye(ctx, 26, -2, 1.3, '#ddaa30');
+      // fur texture
+      speckle(ctx, -20, -6, 38, 14, 'rgba(20,18,16,0.4)', 0.08, 113);
+      speckle(ctx, -16, -2, 34, 8, 'rgba(220,210,190,0.18)', 0.03, 5);
+    },
+
+    goat(ctx, f) {
+      const stepA = f === 'walkA' ? 1 : f === 'walkB' ? -1 : 0;
+      const stepB = -stepA;
+      const headDown = f === 'graze';
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      fillEllipse(ctx, 0, 22, 22, 3);
+      // body — shaggy white
+      shadedBody(ctx, -22, -8, 42, 22, 9, '#d8d2c0', '#f4eedc');
+      // chest/belly highlight
+      ctx.fillStyle = '#f8f4e4';
+      roundRect(ctx, -16, 4, 30, 8, 3, true);
+      // shaggy fringe along belly + chest
+      ctx.fillStyle = '#c4bca8';
+      for (let i = -20; i < 18; i += 4) {
+        ctx.fillRect(i, 12, 2, 4);
+      }
+      // beard
+      if (!headDown) {
+        ctx.fillStyle = '#f4eedc';
+        ctx.beginPath();
+        ctx.moveTo(20, 4); ctx.lineTo(24, 12); ctx.lineTo(18, 10);
+        ctx.closePath(); ctx.fill();
+      }
+      // legs (short, stocky)
+      const legCol = '#3a2a1c', hoof = '#0a0604';
+      leg(ctx, -16, 12, 10 + stepA, 3.5, legCol, hoof);
+      leg(ctx,  -8, 12, 10 + stepB, 3.5, legCol, hoof);
+      leg(ctx,   6, 12, 10 + stepA, 3.5, legCol, hoof);
+      leg(ctx,  14, 12, 10 + stepB, 3.5, legCol, hoof);
+      // neck + head
+      const hx = headDown ? 24 : 22;
+      const hy = headDown ? 12 : -10;
+      ctx.fillStyle = '#f4eedc';
+      ctx.beginPath();
+      ctx.moveTo(16, -6);
+      ctx.lineTo(hx - 2, hy - 2);
+      ctx.lineTo(hx + 4, hy + 6);
+      ctx.lineTo(18, 4);
+      ctx.closePath(); ctx.fill();
+      // head
+      ctx.fillStyle = '#f4eedc';
+      roundRect(ctx, hx - 2, hy - 4, 12, 10, 3, true);
+      // muzzle
+      ctx.fillStyle = '#d8d2c0';
+      roundRect(ctx, hx + 6, hy + 1, 6, 5, 1.5, true);
+      // black horns — backward-curved
+      if (!headDown) {
+        ctx.strokeStyle = '#1a1208';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(hx, hy - 4);
+        ctx.quadraticCurveTo(hx - 2, hy - 10, hx - 6, hy - 9);
+        ctx.moveTo(hx + 5, hy - 4);
+        ctx.quadraticCurveTo(hx + 3, hy - 10, hx - 1, hy - 9);
+        ctx.stroke();
+        // horn highlights
+        ctx.fillStyle = '#4a3424';
+        ctx.fillRect(hx - 5, hy - 9, 1, 1);
+      }
+      // ear
+      ctx.fillStyle = '#d8d2c0';
+      ctx.beginPath();
+      ctx.moveTo(hx + 1, hy - 3); ctx.lineTo(hx + 4, hy - 8); ctx.lineTo(hx + 5, hy - 3);
+      ctx.closePath(); ctx.fill();
+      // eye + nose
+      eye(ctx, hx + 5, hy, 1.2);
+      ctx.fillStyle = '#1a1208';
+      ctx.fillRect(hx + 10, hy + 3, 1.2, 1.2);
+      // speckle for slight texture
+      speckle(ctx, -20, -8, 40, 18, 'rgba(140,128,100,0.2)', 0.04, 31);
+    },
+
+    cub(ctx, f) {
+      const sprint = f === 'sprint';
+      const stepA = f === 'walkA' ? 1 : f === 'walkB' ? -1 : 0;
+      const stepB = -stepA;
+      const bodyDip = sprint ? 3 : 0;
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      fillEllipse(ctx, 0, 16, 18, 3);
+      // body — small, round, very dark
+      shadedBody(ctx, -16, -6 + bodyDip, 30, 18, 8, '#1a1208', '#3a2814');
+      // back highlight (fur sheen)
+      ctx.fillStyle = 'rgba(90,60,30,0.3)';
+      roundRect(ctx, -14, -6 + bodyDip, 26, 4, 3, true);
+      // legs — short
+      const legCol = '#0a0604';
+      leg(ctx, -12, 10 + bodyDip, 5 - bodyDip * 0.4, 4, legCol, null, sprint);
+      leg(ctx,  -4, 10 + bodyDip, 5 - bodyDip * 0.4, 4, legCol, null, false);
+      leg(ctx,   4, 10 + bodyDip, 5 - bodyDip * 0.4, 4, legCol, null, false);
+      leg(ctx,  12, 10 + bodyDip, 5 - bodyDip * 0.4, 4, legCol, null, sprint);
+      // head — large for body
+      const hx = sprint ? 18 : 16;
+      const hy = sprint ? 0 + bodyDip : -6;
+      ctx.fillStyle = '#2a1810';
+      fillEllipse(ctx, hx, hy, 8, 7);
+      // muzzle (lighter brown)
+      ctx.fillStyle = '#5a3a20';
+      roundRect(ctx, hx + 2, hy + 1, 7, 5, 2, true);
+      // muzzle highlight
+      ctx.fillStyle = '#7a5230';
+      ctx.fillRect(hx + 3, hy + 1, 5, 2);
+      // nose
+      ctx.fillStyle = '#0a0604';
+      fillEllipse(ctx, hx + 8, hy + 3, 1.4, 1.1);
+      // ears — large + round
+      ctx.fillStyle = '#1a1208';
+      fillEllipse(ctx, hx - 4, hy - 5, 3, 3);
+      fillEllipse(ctx, hx + 3, hy - 6, 3, 3);
+      ctx.fillStyle = '#4a3020';
+      fillEllipse(ctx, hx - 4, hy - 4, 1.5, 1.5);
+      fillEllipse(ctx, hx + 3, hy - 5, 1.5, 1.5);
+      // eye — amber
+      eye(ctx, hx + 4, hy, 1.3, '#3a2010');
+      // fur speckle
+      speckle(ctx, -14, -4 + bodyDip, 28, 14, 'rgba(80,50,24,0.4)', 0.08, 67);
+    },
+  };
+
+  // ============================================================
+  // SPRITE ATLAS
+  //   Frame catalog + offscreen canvas built at boot. Each species
+  //   reserves rectangles in a packed atlas; painters paint into
+  //   those rects exactly once. Per-frame rendering reads from this
+  //   single image via drawImage — cheap and crisp.
+  // ============================================================
+  const ATLAS = (() => {
+    const PAD = 3;
+    // species → frame list, frame size (atlas px, also CSS px since drawn 1:1)
+    const layout = [
+      ['deer',    ['idle','walkA','walkB','graze'], 68, 60],
+      ['rabbit',  ['idle','hopA','hopB'],           36, 32],
+      ['eagle',   ['flapUp','flapMid','flapDown','glide'], 64, 40],
+      ['moose',   ['idle','walkA','walkB','graze'],124, 92],
+      ['caribou', ['idle','walkA','walkB','graze'], 84, 72],
+      ['goat',    ['idle','walkA','walkB','graze'], 68, 60],
+      ['bear',    ['idle','walkA','walkB','sprint'], 96, 64],
+      ['fox',     ['idle','walkA','walkB','sprint'], 72, 36],
+      ['wolf',    ['idle','walkA','walkB'],         80, 48],
+      ['cub',     ['idle','walkA','walkB','sprint'], 52, 42],
+    ];
+
+    const ATLAS_W = 1024;
+    const frames = {};
+    let cx = PAD, cy = PAD, rowH = 0;
+    for (const [name, fNames, w, h] of layout) {
+      frames[name] = {};
+      for (const f of fNames) {
+        if (cx + w + PAD > ATLAS_W) { cx = PAD; cy += rowH + PAD; rowH = 0; }
+        frames[name][f] = { x: cx, y: cy, w, h };
+        cx += w + PAD;
+        rowH = Math.max(rowH, h);
+      }
+    }
+    const ATLAS_H = cy + rowH + PAD;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = ATLAS_W; canvas.height = ATLAS_H;
+    const actx = canvas.getContext('2d');
+    actx.imageSmoothingEnabled = true;
+    // transparent background (default), then paint each frame
+    for (const name in frames) {
+      const painter = painters[name];
+      if (!painter) continue;
+      for (const fname in frames[name]) {
+        const r = frames[name][fname];
+        actx.save();
+        // clip so a painter's stray draws can't bleed into neighbors
+        actx.beginPath();
+        actx.rect(r.x, r.y, r.w, r.h);
+        actx.clip();
+        actx.translate(r.x + r.w / 2, r.y + r.h / 2);
+        painter(actx, fname);
+        actx.restore();
+      }
+    }
+    return { canvas, frames };
+  })();
+  if (location.hash === '#atlas') { window.__atlas = ATLAS; }
+
+  // Pick the frame for an animal at time t given its behavior + flee state.
+  function pickFrame(a, t) {
+    const s = a.species;
+    const sprite = s.sprite;
+    const set = ATLAS.frames[sprite];
+    if (!set) return null;
+    if (sprite === 'eagle') {
+      // 4-frame flap cycle when crossing; "glide" only when slow (rare)
+      const phase = (t * 5.5 + a.seed) % (Math.PI * 2);
+      const stage = (phase / (Math.PI * 2) * 3) | 0;
+      return set[['flapDown', 'flapMid', 'flapUp'][stage] || 'flapMid'];
+    }
+    if (sprite === 'rabbit') {
+      const phase = ((t * 6 + a.seed) % 1) > 0.5 ? 'hopA' : 'hopB';
+      return set[phase] || set.idle;
+    }
+    if (s.behavior === 'flee-when-near' && a.flee && set.sprint) {
+      return set.sprint;
+    }
+    if (s.behavior === 'walk-across' || (s.behavior === 'flee-when-near' && a.flee)) {
+      const phase = ((t * 3 + a.seed) % 1) > 0.5 ? 'walkA' : 'walkB';
+      return set[phase] || set.idle;
+    }
+    if (s.behavior === 'stationary-graze') {
+      // alternate idle and graze on slow timer for variety
+      const slow = Math.floor((t + a.seed * 4) / 3) & 1;
+      return slow && set.graze ? set.graze : set.idle;
+    }
+    return set.idle || set[Object.keys(set)[0]];
   }
 
   // ============================================================
@@ -1187,9 +1906,14 @@
     const ctx = game.ctx;
     const box = animalScreenBox(a);
     const scale = a.depth * 1.2;
+    const frame = pickFrame(a, t);
+    if (!frame) return;
     ctx.save();
     ctx.translate(box.cx, box.cy);
     ctx.scale(a.dir < 0 ? -scale : scale, scale);
+
+    const dw = frame.w, dh = frame.h;
+    const dx = -dw / 2, dy = -dh / 2;
 
     // motion blur: extra alpha-faded copies offset opposite to travel direction
     const sNorm = clamp(game.speed / SPEED.MAX, 0, 1);
@@ -1198,13 +1922,13 @@
       for (let i = 1; i <= 2; i++) {
         ctx.save();
         ctx.globalAlpha = blurStrength * (i === 1 ? 0.45 : 0.22);
-        ctx.translate( i * 5 * (a.dir < 0 ? 1 : -1), 0 ); // smear backward
-        a.species.draw(ctx, a, t);
+        const off = i * 5 * (a.dir < 0 ? 1 : -1);
+        ctx.drawImage(ATLAS.canvas, frame.x, frame.y, frame.w, frame.h, dx + off, dy, dw, dh);
         ctx.restore();
       }
     }
     ctx.globalAlpha = 1;
-    a.species.draw(ctx, a, t);
+    ctx.drawImage(ATLAS.canvas, frame.x, frame.y, frame.w, frame.h, dx, dy, dw, dh);
     ctx.restore();
   }
 
